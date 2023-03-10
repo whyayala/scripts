@@ -1,0 +1,59 @@
+
+set -eo pipefail
+source ./utils.sh
+
+STACK_NAME="stack-name"
+INSTANCE_ALARM_LOGICAL_RESOURCE_ID="InstanceRebootAlarm"
+SYTEM_ALARM_LOGICAL_RESOURCE_ID="SystemRecoveryAlarm"
+
+get_instance_alarm() {
+    alarm_name=$(get_physical_resource_id $STACK_NAME $INSTANCE_ALARM_LOGICAL_RESOURCE_ID)
+
+    aws cloudwatch describe-alarms \
+        --alarm-names $alarm_name \
+        --query='MetricAlarms[0].AlarmArn' \
+        --output=text
+}
+
+get_system_alarm() {
+    alarm_name=$(get_physical_resource_id $STACK_NAME $SYTEM_ALARM_LOGICAL_RESOURCE_ID)
+
+    aws cloudwatch describe-alarms \
+        --alarm-names $alarm_name \
+        --query='MetricAlarms[0].AlarmArn' \
+        --output=text
+}
+
+# Deploy template with FIS experiment definition
+sam deploy --parameter-overrides \
+    PrimaryInstanceId=$(get_physical_resource_id $STACK_NAME EC2Instance) \
+    FailoverInstanceAlarm=$(get_failover_instance_alarm) \
+    FailoverSystemAlarm=$(get_failover_system_alarm)
+
+# Get experiment id
+EXPERIMENT_ID=$(aws fis start-experiment \
+    --experiment-template-id $(get_physical_resource_id $STACK_NAME FailoverTest) \
+    --query='experiment.id' \
+    --output=text
+)
+# Get Experiment status
+EXPERIMENT_STATUS=$(aws fis get-experiment \
+    --id $EXPERIMENT_ID \
+    --query='experiment.state.status' \
+    --output=text
+);
+
+# Ping the status and exit 1 on failed experiment
+while [ $EXPERIMENT_STATUS != "completed" ]; do
+    sleep 30s;
+    EXPERIMENT_STATUS=$(aws fis get-experiment \
+        --id $EXPERIMENT_ID \
+        --query='experiment.state.status' \
+        --output=text
+    );
+    echo "Experiment status is $EXPERIMENT_STATUS";
+    if [ $EXPERIMENT_STATUS == 'stopped' ] || [ $EXPERIMENT_STATUS == 'failed' ]; then
+        echo 'Exiting due to stopped or failed experiment.';
+        exit 1
+    fi
+done
