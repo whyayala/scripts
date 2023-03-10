@@ -9,3 +9,7 @@ sudo installer -pkg AWSCLIV2.pkg -target /
 which aws
 aws --version
 ```
+
+## Install Certbot
+
+https://eff-certbot.readthedocs.io/en/stable/install.html
