@@ -1,11 +1,12 @@
 
 set -eo pipefail
-source ./utils.sh
+source ../utils.sh
 
 STACK_NAME="stack-name"
 INSTANCE_ALARM_LOGICAL_RESOURCE_ID="InstanceRebootAlarm"
 SYTEM_ALARM_LOGICAL_RESOURCE_ID="SystemRecoveryAlarm"
 
+# Pre-existing stack with the defined logical resource ids is required for this to work
 get_instance_alarm() {
     alarm_name=$(get_physical_resource_id $STACK_NAME $INSTANCE_ALARM_LOGICAL_RESOURCE_ID)
 
@@ -24,15 +25,15 @@ get_system_alarm() {
         --output=text
 }
 
-# Deploy template with FIS experiment definition
+# Deploy template with FIS experiment definition. Experiment will stop if the provided alarms go off. Note that the alarms provided are not linked to the instance being tested.
 sam deploy --parameter-overrides \
     PrimaryInstanceId=$(get_physical_resource_id $STACK_NAME EC2Instance) \
-    FailoverInstanceAlarm=$(get_failover_instance_alarm) \
-    FailoverSystemAlarm=$(get_failover_system_alarm)
+    InstanceAlarm=$(get_instance_alarm) \
+    SystemAlarm=$(get_system_alarm)
 
 # Get experiment id
 EXPERIMENT_ID=$(aws fis start-experiment \
-    --experiment-template-id $(get_physical_resource_id $STACK_NAME FailoverTest) \
+    --experiment-template-id $(get_physical_resource_id fis-tests-stack FailoverTest) \
     --query='experiment.id' \
     --output=text
 )

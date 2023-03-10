@@ -1,0 +1,12 @@
+version=0.1
+[default.global.parameters]
+stack_name = "fis-tests-stack"
+region = "us-east-1"
+
+[default.deploy.parameters]
+capabilities = [
+    "CAPABILITY_IAM",
+    "CAPABILITY_NAMED_IAM",
+    "CAPABILITY_AUTO_EXPAND"
+]
+fail_on_empty_changeset = "false"

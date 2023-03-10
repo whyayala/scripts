@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  PrimaryInstanceId:
+    Type: String
+    Description: Instance id of the primary sbc.
+
+  InstanceAlarm:
+    Type: String
+    Description: Alarm for health status of the failover instance
+  
+  SystemAlarm:
+    Type: String
+    Description: Alarm for health status of the failover system
+
+Resources:
+  FisExperimentRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - fis.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Policies:
+        - PolicyName: FisExperimentRole
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeInstances
+                  - ec2:RebootInstances
+                  - ec2:StopInstances
+                  - ec2:StartInstances
+                Resource: arn:aws:ec2:*:*:instance/*
+
+  FailoverTest:
+    Type: AWS::FIS::ExperimentTemplate
+    Properties: 
+      Targets: 
+        SbcPrimaryInstance:
+          ResourceArns:
+            - !Sub arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:instance/${PrimaryInstanceId}
+          ResourceType: aws:ec2:instance
+          SelectionMode: ALL
+      Actions: 
+        StopInstances:
+          ActionId: aws:ec2:stop-instances
+          Parameters: {"startInstancesAfterDuration": "PT5M"}
+          Targets:
+            Instances: SbcPrimaryInstance    
+      Description: SBC Failover Test
+      StopConditions:
+        - Source: aws:cloudwatch:alarm
+          Value: !Ref InstanceAlarm
+        - Source: aws:cloudwatch:alarm
+          Value: !Ref SystemAlarm
+      RoleArn: !GetAtt FisExperimentRole.Arn
+      Tags:
+        TestType: chaos
